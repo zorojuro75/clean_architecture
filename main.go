@@ -1,118 +1,84 @@
-package main 
+package main
+
 import (
-    "errors"
-    "fmt"
+	"fmt"
+	"errors"
+)
+
+var (
+	ErrNotFound = errors.New("not found")
+	ErrStockOut = errors.New("Out of stock")
+	ErrInvalidInput = errors.New("Invalid input")
 )
 
 type Product struct {
-	ID			uint
-	Name		string
-	Price		float64
-	Stock		int
-	Discount	float64
-}
-
-func (p Product) Validate() error {
-	if p.Name == ""{
-		return errors.New("product name cannot be empty")
-	}
-	if p.Price <= 0 {
-        return errors.New("product price must be greater than zero")
-    }
-    if p.Stock < 0 {
-        return errors.New("product stock cannot be negative")
-    }
-	if p.Discount < 0 || p.Discount >= 1 {
-		return errors.New("Discount must be greater than or equal 0 and less than 1")
-	}
-	return nil
-}
-
-func (p *Product) applyDiscount() (float64, error){
-	if p.Discount < 0 || p.Discount > 1 {
-		return 0, errors.New("Invalid discount percentage")
-	}
-	discounted := p.Price * p.Discount
-	return discounted, nil
-}
-
-func (p *Product)orderTotal(discountedPrice float64, quantity int) (float64, error) {
-	err := p.updateStock(quantity)
-	if err != nil{
-		return 0, err
-	}
-	return discountedPrice * float64(quantity), nil
-}
-
-func (p *Product) updateStock (quantity int) error{
-	if p.Stock<=0 {
-		return errors.New("Product unavailable")
-	}
-	p.Stock = p.Stock - quantity
-	return nil
-}
-
-func (p *Product) printReceipt(quantity int) error{
-	dicountedAmount, err := p.applyDiscount()
-	if err !=nil{
-		fmt.Println("Error: ", err)
-		return err
-	}
-	discountedPrice := p.Price - dicountedAmount
-	total, err := p.orderTotal(discountedPrice, quantity)
-	if err != nil{
-
-	}
-	
-	fmt.Println("====== Receipt ======")
-    fmt.Printf("Product  : %s\n", p.Name)
-    fmt.Printf("Price    : $%.2f\n", p.Price)
-    fmt.Printf("Discount : %.0f%%\n", p.Discount*100)
-    fmt.Printf("New Price: $%.2f\n", discountedPrice)
-    fmt.Printf("Quantity : %d\n", quantity)
-    fmt.Printf("Total    : $%.2f\n", total)
-    fmt.Println("=====================")
-	return nil
-}
-
-type Address struct {
-	Street		string
-	City		string
-	Zip			string
-}
-
-type User struct {
-	ID 		uint
+	ID		uint
 	Name	string
-	Email	string
-	Address Address
+	Price 	float64
+	Stock 	int
 }
-func main(){
-	u := User{
-		ID: 1,
-		Name: "Banna",
-		Email: "smasayedalbanna75@gmail.com",
-		Address: Address{
-			Street: "66/2/2 Maniknagar, Wasa Road",
-			City: "Dhaka",
-			Zip: "1203",
-		},
+
+type ProductRepository interface {
+	FindByID(id uint) (*Product, error)
+}
+
+type FakeRepo struct {}
+
+func (r *FakeRepo) FindByID(id uint) (*Product, error) {
+	products := map[uint]*Product{
+        1: {ID: 1, Name: "Laptop",    Price: 999.99, Stock: 5},
+        2: {ID: 2, Name: "Headphones", Price: 49.99,  Stock: 0},
+    }
+
+	p, ok := products[id]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return p, nil
+}
+
+func placeOrder(r ProductRepository, productID uint, quantity int) (float64, error){
+	if quantity<=0{
+		return 0, fmt.Errorf("placeOrder: quantity=%d: %w", quantity, ErrInvalidInput)
+	}
+	p, err:= r.FindByID(productID)
+	if err!=nil{
+		return 0, fmt.Errorf("placeOrder: productID=%d: %w", productID, err)
 	}
 
-	fmt.Println(u.Name)
-	fmt.Println(u.Address.City)
-	good := Product{ID: 1, Name: "Laptop", Price: 999.99, Stock: 10, Discount: .10}
-    bad  := Product{ID: 2, Name: "", Price: -5, Stock: 0}
+	if p.Stock < quantity {
+		return 0, fmt.Errorf("placeOrder: %s: %w", p.Name, ErrStockOut)
+	}
 
-    if err := good.Validate(); err != nil {
-        fmt.Println("Error:", err)
-    } else {
-        fmt.Println("✓ Product is valid:", good.Name)
-    }
+	total := float64(quantity) * p.Price
+	return total, nil
+}
 
-    if err := bad.Validate(); err != nil {
-        fmt.Println("✗ Invalid product:", err)
-    }
+func handleOrder(r ProductRepository, productID uint, quantity int) {
+	total, err := placeOrder(r, productID, quantity)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrNotFound):
+            fmt.Printf("[404] product %d does not exist\n", productID)
+        case errors.Is(err, ErrStockOut):
+            fmt.Printf("[409] product %d is out of stock\n", productID)
+        case errors.Is(err, ErrInvalidInput):
+            fmt.Printf("[400] invalid quantity: %d\n", quantity)
+        default:
+            fmt.Printf("[500] internal error: %v\n", err)
+        }
+		return
+	}
+	fmt.Printf("[200] order placed! total: $%.2f\n", total)
+}
 
-	good.printReceipt(3)
+
+func main() {
+    repo := &FakeRepo{}
+
+    fmt.Println("--- Order attempts ---")
+    handleOrder(repo, 1, 2)  // success
+    handleOrder(repo, 2, 1)  // out of stock
+    handleOrder(repo, 9, 1)  // not found
+    handleOrder(repo, 1, -1) // invalid input
 }
