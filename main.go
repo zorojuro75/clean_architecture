@@ -1,37 +1,33 @@
 package main
 
 import (
-    "productmanager/handler"
-    "productmanager/repository"
-    "productmanager/usecase"
+	"productmanager/handler"
+	"productmanager/repository"
+	"productmanager/usecase"
 
-    "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
-    // 1. Infrastructure
-    repo := repository.NewInMemoryRepo()
+	repo := repository.NewInMemoryRepo()
+	productUC := usecase.NewProductUsecase(repo)
+	productHandler := handler.NewProductHandler(productUC)
 
-    // 2. Business logic
-    productUC := usecase.NewProductUsecase(repo)
+	r := gin.Default()
+	healthHandler := handler.NewHealthHandler()
+	r.GET("/health", healthHandler.Check)
 
-    // 3. Delivery — inject usecase into handler
-    productHandler := handler.NewProductHandler(productUC)
+	api := r.Group("/api/v1")
+	{
+		p := api.Group("/products")
+		{
+			p.GET("", productHandler.ListProducts)
+			p.GET("/:id", productHandler.GetProduct)
+			p.POST("", productHandler.CreateProduct)
+			p.PUT("/:id", productHandler.UpdateProduct)
+			p.DELETE("/:id", productHandler.DeleteProduct)
+		}
+	}
 
-    // 4. Router
-    r := gin.Default()
-
-    api := r.Group("/api/v1")
-    {
-        p := api.Group("/products")
-        {
-            p.GET("",     productHandler.ListProducts)
-            p.GET("/:id", productHandler.GetProduct)
-            p.POST("",    productHandler.CreateProduct)
-            p.PUT("/:id", productHandler.UpdateProduct)
-            p.DELETE("/:id", productHandler.DeleteProduct)
-        }
-    }
-
-    r.Run(":8080")
+	r.Run(":8080")
 }

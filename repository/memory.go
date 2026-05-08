@@ -9,7 +9,7 @@ type InMemoryRepo struct {
 
 func NewInMemoryRepo() *InMemoryRepo {
     r := &InMemoryRepo{products: make(map[uint]entity.Product), nextID: 1}
-    // seed data
+
     r.products[1] = entity.Product{ID: 1, Name: "Laptop",   Price: 999.99, Stock: 5}
     r.products[2] = entity.Product{ID: 2, Name: "Mouse",    Price: 29.99,  Stock: 20}
     r.products[3] = entity.Product{ID: 3, Name: "Keyboard", Price: 79.99,  Stock: 15}

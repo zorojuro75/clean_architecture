@@ -34,7 +34,7 @@ type ProductRepository interface {
 type ProductUsecase interface {
     CreateProduct(name string, price float64, stock int) (*Product, error)
     GetProduct(id uint) (*Product, error)
-    ListProducts() []Product
+    ListProducts(page, limit int) ([]Product, int)
     UpdateProduct(id uint, name string, price float64, stock int) (*Product, error)
     DeleteProduct(id uint) error
 }
